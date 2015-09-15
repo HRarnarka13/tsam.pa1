@@ -46,11 +46,11 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
         //size_t numberOfBytes;
         while(!feof(file)){ 
             memset(&chunk,0,sizeof(chunk));
-	    chunk[0] = 0x00;
+	        chunk[0] = 0x00;
             chunk[1] = 3 & 0xff;  // set the opcode 
      	    // set the packet number 
-	    chunk[2] = (packetNumber >> 8) & 0xff;
-	    chunk[3] = packetNumber & 0xff; 
+	        chunk[2] = (packetNumber >> 8) & 0xff;
+	        chunk[3] = packetNumber & 0xff; 
 
             fread(&chunk[4], 1, 512, file); // fill the chunck with data from file 
             
@@ -64,6 +64,7 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
         fclose(file);
     }else{
         perror("Problem with reading file");
+        exit(1);
     }
 }
 
