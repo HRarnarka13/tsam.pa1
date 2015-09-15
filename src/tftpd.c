@@ -32,44 +32,50 @@ void getMode(char* packet, char*fileName, char* mode) {
 
 void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t len){
 
-    fprintf(stdout, "test!! \n");
-    fflush(stdout);
-    FILE* file = NULL;
+    FILE* file;
     char path[512];
     strcpy(path, "data/");
     strcat(path, fileName);
     file = fopen(path, "r");
     char chunk[516];
-    
-    if(file != NULL){
-	       unsigned short packetNumber = 1;    
-        //size_t numberOfBytes;
-        while(!feof(file)){ 
-            memset(&chunk,0,sizeof(chunk));
-	        chunk[0] = 0x00;
+    char response[516];
+    if (file != NULL) {
+	unsigned short packetNumber = 1;    
+        size_t numberOfBytes;
+        while (!feof(file)) { 
+            memset(&chunk,0, sizeof(chunk));
+	    memset(&response, 0, sizeof(response));
+	    chunk[0] = 0x00;
             chunk[1] = 3 & 0xff;  // set the opcode 
      	    // set the packet number 
 	        chunk[2] = (packetNumber >> 8) & 0xff;
 	        chunk[3] = packetNumber & 0xff; 
 
-            fread(&chunk[4], 1, 512, file); // fill the chunck with data from file 
-            
+            numberOfBytes = fread(&chunk[4], 1, 512, file); // fill the chunck with data from file 
+	    
             sendto(sockfd, chunk, (size_t) sizeof(chunk), 0,
-                 (struct sockaddr *) &client, (socklen_t) sizeof(client)); 
+                 (struct sockaddr *) &client, (socklen_t) sizeof(client)); 	    
+	    
+	    ssize_t response_length = recvfrom(sockfd, response, sizeof(response) - 1, 0,
+	             				(struct sockaddr *) &client, &len);
+	    
+	    response[response_length] = '\0';
 
-            //fprintf(stdout, "packetnumber: %zu\n", packetNumber);
-            fprintf(stdout, "%s", chunk);
+	    fprintf(stdout, "Response: %s \n", response); 
+			
+            fprintf(stdout, "packetnumber: %zu\n", packetNumber);
+            // fprintf(stdout, "%s", chunk);
             packetNumber++;
         }
+	fprintf(stdout, "rass \n");
         fclose(file);
-    }else{
+    } else {
         perror("Problem with reading file");
         exit(1);
     }
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv){
         int sockfd;
         struct sockaddr_in server, client;
         char message[512];
