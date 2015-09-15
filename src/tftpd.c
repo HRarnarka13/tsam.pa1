@@ -30,7 +30,7 @@ void getMode(char* packet, char*fileName, char* mode) {
 	strcpy(mode, packet + 2 + fileNameLength + 1); // get the mode from the packet
 }
 
-short getPacketNumber(char one, char two) {
+unsigned short getNumber(unsigned char one, unsigned char two) {
 	return (one << 8) | two;
 }
 
@@ -43,12 +43,14 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
     file = fopen(path, "r");
     char chunk[516];
     char response[516];
+	
+	struct sockaddr_in originalClient = client; 
 
     if (file != NULL) {
 		unsigned short packetNumber = 1;    
     	size_t numberOfBytes;
     	while (!feof(file)) { 
-    		memset(&chunk,0, sizeof(chunk));
+			memset(&chunk,0, sizeof(chunk));
 	    	memset(&response, 0, sizeof(response));
 	    	chunk[0] = 0x00;
         	chunk[1] = 3 & 0xff;  // set the opcode 
@@ -57,32 +59,48 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
 	    	chunk[3] = packetNumber & 0xff; 
 
         	numberOfBytes = fread(&chunk[4], 1, 512, file); // fill the chunck with data from file 
-	    
+	    	
+			// send packet to client
         	sendto(sockfd, chunk, numberOfBytes + 4, 0,
                  (struct sockaddr *) &client, (socklen_t) sizeof(client)); 	    
-	    
+	    	
+			// get response from client
 	    	ssize_t response_length = recvfrom(sockfd, response, sizeof(response) - 1, 0,
 	             				(struct sockaddr *) &client, &len);
 	    
 	    	response[response_length] = '\0';
 			int receivedOpCode = getOpcode(response);			
-			short receivedPacket = getPacketNumber(response[2], response[3]);
+			unsigned short receivedPacket = getNumber(response[2], response[3]);
+
+			// check if response is a ACK packed and the right packed was received
 			if (receivedOpCode != 4 || packetNumber != receivedPacket ) {
 				perror("Error!");
 			}			
-	
+			// check if we are still connected to original client
+			if (originalClient != client) {
+				perror("Error, not the same client");	
+			}	
             fprintf(stdout, "Packet sent    : %zu\n", packetNumber);
 			fprintf(stdout, "Response opcode: %d\n", getOpcode(response));
-			fprintf(stdout, "Packet recieved: %d\n", getPacketNumber(response[2], response[3]));
+			fprintf(stdout, "Packet recieved: %d\n", getNumber((unsigned char) response[2], 
+															   (unsigned char) response[3]));
 
        	    // fprintf(stdout, "%s", chunk);
             packetNumber++;
         }
-		fprintf(stdout, "rass \n");
+		printf("Done sending file: %s\n", fileName);
         fclose(file);
     } else {
-        
-		perror("Problem with reading file");
+		memset(&chunk, 0, sizeof(chunk));
+		// Set op code
+		chunk[1] = 5;
+		// set the error code
+		chunk[3] = 1;	
+		// set the error message
+	    char message[] = "File not found: ";
+		strcat(message, fileName);
+		strcpy(&chunk[4], message);  
+		perror(message);
     }
 }
 
