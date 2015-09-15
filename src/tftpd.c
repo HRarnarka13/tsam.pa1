@@ -30,7 +30,8 @@ void getMode(char* packet, char*fileName, char* mode) {
 	strcpy(mode, packet + 2 + fileNameLength + 1); // get the mode from the packet
 }
 
-void readChunk(char* fileName){
+void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t len){
+
     fprintf(stdout, "test!! \n");
     fflush(stdout);
     FILE* file = NULL;
@@ -39,19 +40,27 @@ void readChunk(char* fileName){
     strcat(path, fileName);
     file = fopen(path, "r");
     char chunk[516];
-    //unsigned short blockNumber = 1;
+    
     if(file != NULL){
-        size_t i;
-        while (!feof(file)){
-            i = fread(chunk, 1, 512, file);
-            /*if(i < 512){
-                //
-            }*/
-            fprintf(stdout, "Size of i: %zu\n", i);
-            //fprintf(stdout, "%s", chunk);
-        }
+	       unsigned short packetNumber = 1;    
+        //size_t numberOfBytes;
+        while(!feof(file)){ 
+            memset(&chunk,0,sizeof(chunk));
+	    chunk[0] = 0x00;
+            chunk[1] = 3 & 0xff;  // set the opcode 
+     	    // set the packet number 
+	    chunk[2] = (packetNumber >> 8) & 0xff;
+	    chunk[3] = packetNumber & 0xff; 
 
-        //memset(&chunk,0,sizeof(chunk));       
+            fread(&chunk[4], 1, 512, file); // fill the chunck with data from file 
+            
+            sendto(sockfd, chunk, (size_t) sizeof(chunk), 0,
+                 (struct sockaddr *) &client, (socklen_t) sizeof(client)); 
+
+            //fprintf(stdout, "packetnumber: %zu\n", packetNumber);
+            fprintf(stdout, "%s", chunk);
+            packetNumber++;
+        }
         fclose(file);
     }else{
         perror("Problem with reading file");
@@ -83,7 +92,6 @@ int main(int argc, char **argv)
                 FD_ZERO(&rfds);
                 FD_SET(sockfd, &rfds);
 
-                /* Wait for five seconds. */
                 tv.tv_sec = 5;
                 tv.tv_usec = 0;
                 retval = select(sockfd + 1, &rfds, NULL, NULL, &tv);
@@ -123,7 +131,7 @@ int main(int argc, char **argv)
                         /* Print the message to stdout and flush. */
                         // fprintf(stdout, "Received:\n%s\n", message);
                         fflush(stdout);
-                        readChunk(fileName);
+                        readChunk(fileName, sockfd, client, len);
                         /*FILE* file = NULL;
                         char chunk[512];
                         memset(chunk,0,sizeof(chunk));
