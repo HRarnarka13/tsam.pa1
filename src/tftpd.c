@@ -59,24 +59,27 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
 	    	chunk[3] = packetNumber & 0xff; 
 
         	numberOfBytes = fread(&chunk[4], 1, 512, file); // fill the chunck with data from file 
+			int receivedOpCode = 0;
+			unsigned short receivedPacket = '\0';	
+			do {
+				// send packet to client
+        		sendto(sockfd, chunk, numberOfBytes + 4, 0,
+                	 (struct sockaddr *) &client, (socklen_t) sizeof(client)); 	    
 	    	
-			// send packet to client
-        	sendto(sockfd, chunk, numberOfBytes + 4, 0,
-                 (struct sockaddr *) &client, (socklen_t) sizeof(client)); 	    
-	    	
-			// get response from client
-	    	ssize_t response_length = recvfrom(sockfd, response, sizeof(response) - 1, 0,
+				// get response from client
+	    		ssize_t response_length = recvfrom(sockfd, response, sizeof(response) - 1, 0,
 	             				(struct sockaddr *) &client, &len);
 	    
-	    	response[response_length] = '\0';
-			int receivedOpCode = getOpcode(response);			
-			unsigned short receivedPacket = getNumber(response[2], response[3]);
+	    		response[response_length] = '\0';
+				receivedOpCode = getOpcode(response);			
+				receivedPacket = getNumber(response[2], response[3]);
 
-			// check if response is a ACK packed and the right packed was received
-			if (receivedOpCode != 4 || packetNumber != receivedPacket ) {
-				perror("Error!");
-			}			
-			// check if we are still connected to original client
+				// check if response is a ACK packed and the right packed was received
+				if (receivedOpCode != 4) {
+					perror("Error!");
+				}			
+				// TODO: check if we are still connected to original client
+			} while (receivedOpCode == 4 && packetNumber != receivedPacket);	
             /*
 			fprintf(stdout, "Packet sent    : %zu\n", packetNumber);
 			fprintf(stdout, "Response opcode: %d\n", getOpcode(response));
@@ -166,7 +169,7 @@ int main(int argc, char **argv){
 				memset(&errorPacket, 0, sizeof(errorPacket));
 				errorPacket[1] = 5; // set the op code
 				errorPacket[3] = 4; // set the error code
-				char errorMessage = "Illegal TFTP operation. Read request (RRQ) only allowed";
+				char errorMessage[] = "Illegal TFTP operation. Read request (RRQ) only allowed";
 				strcpy(&errorPacket[4], errorMessage);
 				// Send the error packet to client
 				sendto(sockfd, errorPacket, sizeof(errorPacket), 0, (struct sockaddr *) &client,
