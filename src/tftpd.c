@@ -44,7 +44,7 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
     char chunk[516];
     char response[516];
 	
-	struct sockaddr_in originalClient = client; 
+	u_short originalPort = client.sin_port; 
 
     if (file != NULL) {
 		unsigned short packetNumber = 1;    
@@ -65,22 +65,26 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
 				// send packet to client
         		sendto(sockfd, chunk, numberOfBytes + 4, 0,
                 	 (struct sockaddr *) &client, (socklen_t) sizeof(client)); 	    
-	    	
 				// get response from client
 	    		ssize_t response_length = recvfrom(sockfd, response, sizeof(response) - 1, 0,
 	             				(struct sockaddr *) &client, &len);
-	    
 	    		response[response_length] = '\0';
 				receivedOpCode = getOpcode(response);			
 				receivedPacket = getNumber(response[2], response[3]);
+			} while (receivedOpCode == 4 && packetNumber != receivedPacket && client.sin_port == originalPort);	
+			
+			if (client.sin_port != originalPort) {
+				// not the same client!, send this guy an error packet
+				// TODO: send the malisiuos client an error packet
+			}
+			if (receivedOpCode != 4) {
+				// did not receive a ack packet, terminate the connection
+				// stop sending the file
+				// TODO : send client error packet
+				return;
+			}
 
-				// check if response is a ACK packed and the right packed was received
-				if (receivedOpCode != 4) {
-					perror("Error!");
-				}			
-				// TODO: check if we are still connected to original client
-			} while (receivedOpCode == 4 && packetNumber != receivedPacket);	
-            /*
+			/*
 			fprintf(stdout, "Packet sent    : %zu\n", packetNumber);
 			fprintf(stdout, "Response opcode: %d\n", getOpcode(response));
 			fprintf(stdout, "Packet recieved: %d\n", getNumber((unsigned char) response[2], 
@@ -92,6 +96,7 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
 		printf("Done sending file: %s\n", fileName);
         fclose(file);
     } else {
+		// Create and send an error packet to client
 		memset(&chunk, 0, sizeof(chunk));
 		// Set op code
 		chunk[1] = 5;
@@ -106,6 +111,12 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
 }
 
 int main(int argc, char **argv){
+	
+	if (argc < 3) {
+		perror("Number of arguments incorrect");
+		exit(1);
+	}
+	
 	int sockfd;
     struct sockaddr_in server, client;
     char message[512];
