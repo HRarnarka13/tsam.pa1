@@ -155,20 +155,26 @@ int main(int argc, char **argv){
            	message[n] = '\0';
 
 		   	int opCode = getOpcode(message);
-		   	char fileName[512];
-		   	getFileName(message, fileName);
-		   	char mode[100];
-		   	getMode(message, fileName, mode);
-		   	fprintf(stdout, "opcode : %d\n", opCode);
-		  	fprintf(stdout, "fileName: %s\n", fileName);
-		   	fprintf(stdout, "mode : %s\n", mode);
-           	/* Print the message to stdout and flush. */
-           	// fprintf(stdout, "Received:\n%s\n", message);
-			fflush(stdout);
-			readChunk(fileName, sockfd, client, len);
-			
-           	fprintf(stdout, "Chunk: %s\n", message);
-           	fflush(stdout);
+			fprintf(stdout, "Recived op code: %d\n", opCode);	
+			// If the op code is a read request
+			if (opCode == 1) {
+				char fileNmae[100];
+				getFileName(message, fileName);
+				char mode[100];
+				getMode(message, fileName, mode);
+				readChunk(fileName, sockfd, client, len);
+			} else {
+				// Create and send an error packet to the client 
+				char errorPacket[100];
+				memset(&errorPacket, 0, sizeof(errorPacket);
+				errorPacket[1] = 5; // set the op code
+				errorPacket[3] = 4; // set the error code
+				char errorMessage = "Illegal TFTP operation. Read request (RRQ) only allowed";
+				strcpy(&errorMessage[4], message);
+				// Send the error packet to client
+				sendto(sockfd, errorPacket, sizeof(errorPakect), 0, (struct sockaddr *) &client,
+						(socklen_t) sizeof(client);
+			}
  		} else {
 			fprintf(stdout, "No message in five seconds.\n");
 			fflush(stdout);
