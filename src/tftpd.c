@@ -30,6 +30,10 @@ void getMode(char* packet, char*fileName, char* mode) {
 	strcpy(mode, packet + 2 + fileNameLength + 1); // get the mode from the packet
 }
 
+unsigned short getNumber(unsigned char one, unsigned char two) {
+	return (one << 8) | two;
+}
+
 void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t len){
 
     FILE* file;
@@ -39,42 +43,80 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
     file = fopen(path, "r");
     char chunk[516];
     char response[516];
+	
+	u_short originalPort = client.sin_port; 
+
     if (file != NULL) {
-	unsigned short packetNumber = 1;    
-    size_t numberOfBytes;
-    while (!feof(file)) { 
-    	memset(&chunk,0, sizeof(chunk));
-	    memset(&response, 0, sizeof(response));
-	    chunk[0] = 0x00;
-        chunk[1] = 3 & 0xff;  // set the opcode 
-     	// set the packet number 
-	    chunk[2] = (packetNumber >> 8) & 0xff;
-	    chunk[3] = packetNumber & 0xff; 
+		unsigned short packetNumber = 1;    
+    	size_t numberOfBytes;
+    	while (!feof(file)) { 
+			memset(&chunk,0, sizeof(chunk));
+	    	memset(&response, 0, sizeof(response));
+	    	chunk[0] = 0x00;
+        	chunk[1] = 3 & 0xff;  // set the opcode 
+     		// set the packet number 
+	    	chunk[2] = (packetNumber >> 8) & 0xff;
+	    	chunk[3] = packetNumber & 0xff; 
 
-        numberOfBytes = fread(&chunk[4], 1, 512, file); // fill the chunck with data from file 
-	    
-        sendto(sockfd, chunk, (size_t) sizeof(chunk), 0,
-                 (struct sockaddr *) &client, (socklen_t) sizeof(client)); 	    
-	    
-	    ssize_t response_length = recvfrom(sockfd, response, sizeof(response) - 1, 0,
+        	numberOfBytes = fread(&chunk[4], 1, 512, file); // fill the chunck with data from file 
+			int receivedOpCode = 0;
+			unsigned short receivedPacket = '\0';	
+			do {
+				// send packet to client
+        		sendto(sockfd, chunk, numberOfBytes + 4, 0,
+                	 (struct sockaddr *) &client, (socklen_t) sizeof(client)); 	    
+				// get response from client
+	    		ssize_t response_length = recvfrom(sockfd, response, sizeof(response) - 1, 0,
 	             				(struct sockaddr *) &client, &len);
-	    
-	    response[response_length] = '\0';
-
-	    fprintf(stdout, "Response: %s \n", response); 
+	    		response[response_length] = '\0';
+				receivedOpCode = getOpcode(response);			
+				receivedPacket = getNumber(response[2], response[3]);
+			} while (receivedOpCode == 4 && packetNumber != receivedPacket && client.sin_port == originalPort);	
 			
-            fprintf(stdout, "packetnumber: %zu\n", packetNumber);
+			if (client.sin_port != originalPort) {
+				// not the same client!, send this guy an error packet
+				// TODO: send the malisiuos client an error packet
+			}
+			if (receivedOpCode != 4) {
+				// did not receive a ack packet, terminate the connection
+				// stop sending the file
+				// TODO : send client error packet
+				return;
+			}
+
+			/*
+			fprintf(stdout, "Packet sent    : %zu\n", packetNumber);
+			fprintf(stdout, "Response opcode: %d\n", getOpcode(response));
+			fprintf(stdout, "Packet recieved: %d\n", getNumber((unsigned char) response[2], 
+															   (unsigned char) response[3]));
+			*/
        	    // fprintf(stdout, "%s", chunk);
             packetNumber++;
         }
-		fprintf(stdout, "rass \n");
+		printf("Done sending file: %s\n", fileName);
         fclose(file);
     } else {
-        perror("Problem with reading file");
+		// Create and send an error packet to client
+		memset(&chunk, 0, sizeof(chunk));
+		// Set op code
+		chunk[1] = 5;
+		// set the error code
+		chunk[3] = 1;	
+		// set the error message
+	    char message[] = "File not found: ";
+		strcat(message, fileName);
+		strcpy(&chunk[4], message);  
+		perror(message);
     }
 }
 
 int main(int argc, char **argv){
+	
+	if (argc < 3) {
+		perror("Number of arguments incorrect");
+		exit(1);
+	}
+	
 	int sockfd;
     struct sockaddr_in server, client;
     char message[512];
@@ -89,65 +131,64 @@ int main(int argc, char **argv){
     server.sin_port = htons(atoi(argv[1]));
     bind(sockfd, (struct sockaddr *) &server, (socklen_t) sizeof(server));
 
-    for (;;) {
- 	   fd_set rfds;
-       struct timeval tv;
-       int retval;
+	for (;;) {
+		fd_set rfds;
+		struct timeval tv;
+       	int retval;
 
-       /* Check whether there is data on the socket fd. */
-       FD_ZERO(&rfds);
-       FD_SET(sockfd, &rfds);
+       	/* Check whether there is data on the socket fd. */
+       	FD_ZERO(&rfds);
+       	FD_SET(sockfd, &rfds);
 
-       tv.tv_sec = 5;
-       tv.tv_usec = 0;
-       retval = select(sockfd + 1, &rfds, NULL, NULL, &tv);
+       	tv.tv_sec = 5;
+       	tv.tv_usec = 0;
+       	retval = select(sockfd + 1, &rfds, NULL, NULL, &tv);
 
-       if (retval == -1) {
-	       perror("select()");
-       } else if (retval > 0) {
-           /* Data is available, receive it. */
-           assert(FD_ISSET(sockfd, &rfds));
+		if (retval == -1) {
+	    	perror("select()");
+		} else if (retval > 0) {
+           	/* Data is available, receive it. */
+           	assert(FD_ISSET(sockfd, &rfds));
 
-           /* Copy to len, since recvfrom may change it. */
-           socklen_t len = (socklen_t) sizeof(client);
-           /* Receive one byte less than declared,
+           	/* Copy to len, since recvfrom may change it. */
+           	socklen_t len = (socklen_t) sizeof(client);
+           	/* Receive one byte less than declared,
             * because it will be zero-termianted
             * below. */
-           ssize_t n = recvfrom(sockfd, message, sizeof(message) - 1, 0,
+           	ssize_t n = recvfrom(sockfd, message, sizeof(message) - 1, 0,
                                  (struct sockaddr *) &client, &len);			
-           /* Send the message back. */
-           sendto(sockfd, message, (size_t) n, 0, (struct sockaddr *) &client,
+           	/* Send the message back. */
+           	sendto(sockfd, message, (size_t) n, 0, (struct sockaddr *) &client,
                                (socklen_t) sizeof(client));
-           /* Zero terminate the message, otherwise
+           	/* Zero terminate the message, otherwise
  		    * printf may access memory outside of the
  		    * string. */
-           message[n] = '\0';
+           	message[n] = '\0';
 
-		   int opCode = getOpcode(message);
-		   char fileName[512];
-		   getFileName(message, fileName);
-		   char mode[100];
-		   getMode(message, fileName, mode);
-		   fprintf(stdout, "opcode : %d\n", opCode);
-		   fprintf(stdout, "fileName: %s\n", fileName);
-		   fprintf(stdout, "mode : %s\n", mode);
-           /* Print the message to stdout and flush. */
-           // fprintf(stdout, "Received:\n%s\n", message);
-           fflush(stdout);
-           readChunk(fileName, sockfd, client, len);
-           /*FILE* file = NULL;
-           char chunk[512];
-           memset(chunk,0,sizeof(chunk));
-                   
-           file = fopen(fileName, "r");
-           fread(message, 512, byteNumber, file);
-           fclose(file);
-
-           fprintf(stdout, "Chunk: %s\n", message);
-           fflush(stdout);*/
+		   	int opCode = getOpcode(message);
+			fprintf(stdout, "Recived op code: %d\n", opCode);	
+			// If the op code is a read request
+			if (opCode == 1) {
+				char fileName[100];
+				getFileName(message, fileName);
+				char mode[100];
+				getMode(message, fileName, mode);
+				readChunk(fileName, sockfd, client, len);
+			} else {
+				// Create and send an error packet to the client 
+				char errorPacket[100];
+				memset(&errorPacket, 0, sizeof(errorPacket));
+				errorPacket[1] = 5; // set the op code
+				errorPacket[3] = 4; // set the error code
+				char errorMessage[] = "Illegal TFTP operation. Read request (RRQ) only allowed";
+				strcpy(&errorPacket[4], errorMessage);
+				// Send the error packet to client
+				sendto(sockfd, errorPacket, sizeof(errorPacket), 0, (struct sockaddr *) &client,
+						(socklen_t) sizeof(client));
+			}
  		} else {
-           fprintf(stdout, "No message in five seconds.\n");
-           fflush(stdout);
+			fprintf(stdout, "No message in five seconds.\n");
+			fflush(stdout);
         }
 	}
 }
