@@ -16,6 +16,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define ERR_MSG_PORT "Transfer already in progress with another client, try again later."
+#define ERR_MSG_OPCODE "Invalid request, only download allowed."
+#define ERR_MSG_FILE_NOT_FOUND "File not found." 
+#define ERR_MSG_ARGUMENTS "Incorrect number of arguments."
+#define ERR_MSG_ILLEGAL_TFTP_OP "Illegal TFTP operation. Read request (RRQ) only allowed" 
+ 
 int getOpcode(char* packet){
 	return packet[1];
 }
@@ -80,7 +86,7 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
 				memset(&errorPacket, 0, sizeof(errorPacket));
 				errorPacket[1] = 5; // set the op code
 				errorPacket[3] = 5; // set the error code
-				char errorMessage[] = "Transfer already in progress with another client, try again later.";
+				char errorMessage[] = ERR_MSG_PORT;
 				strcpy(&errorPacket[4], errorMessage);
 				// Send the error packet to client
 				sendto(sockfd, errorPacket, sizeof(errorPacket), 0, (struct sockaddr *) &client,
@@ -94,7 +100,7 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
 				memset(&errorPacket, 0, sizeof(errorPacket));
 				errorPacket[1] = 5; // set the op code
 				errorPacket[3] = 4; // set the error code
-				char errorMessage[] = "";
+				char errorMessage[] = ERR_MSG_OPCODE;
 				strcpy(&errorPacket[4], errorMessage);
 				// Send the error packet to client
 				sendto(sockfd, errorPacket, sizeof(errorPacket), 0, (struct sockaddr *) &client,
@@ -121,7 +127,7 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
 		// set the error code
 		chunk[3] = 1;	
 		// set the error message
-	    char message[] = "File not found: ";
+	    char message[] = ERR_MSG_FILE_NOT_FOUND; 
 		strcat(message, fileName);
 		strcpy(&chunk[4], message);  
 		perror(message);
@@ -131,7 +137,7 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
 int main(int argc, char **argv){
 	
 	if (argc < 3) {
-		perror("Number of arguments incorrect");
+		perror(ERR_MSG_ARGUMENTS);
 		exit(1);
 	}
 	
@@ -198,7 +204,7 @@ int main(int argc, char **argv){
 				memset(&errorPacket, 0, sizeof(errorPacket));
 				errorPacket[1] = 5; // set the op code
 				errorPacket[3] = 4; // set the error code
-				char errorMessage[] = "Illegal TFTP operation. Read request (RRQ) only allowed";
+				char errorMessage[] = ERR_MSG_ILLEGAL_TFTP_OP;
 				strcpy(&errorPacket[4], errorMessage);
 				// Send the error packet to client
 				sendto(sockfd, errorPacket, sizeof(errorPacket), 0, (struct sockaddr *) &client,
