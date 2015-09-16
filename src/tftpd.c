@@ -53,11 +53,12 @@ int getOpcode(char* packet){
 }
 // Helper for constructing the path of the file requested
 // the parameter directory is argv[2] which is sent as argument to the program
+// basename(packet + 2) removes everything but what is behind the last "/" of a path
+// securing that going back with ../ is not possible.
 void getFilePath(char* packet, char* fileName, char* directory) {
-	fileName = basename(fileName);
-	strcat(directory, "/");
-	strcat(directory, packet + 2);
 	strcpy(fileName, directory);
+	strcat(fileName, "/");
+	strcat(fileName, basename(packet + 2));
 }
 
 void getMode(char* packet, char*fileName, char* mode) {
@@ -139,7 +140,7 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
        	    // fprintf(stdout, "%s", chunk);
             packetNumber++;
         }
-		printf("Done sending file: %s\n", fileName);
+		//printf("Done sending file: %s\n", fileName);
         fclose(file);
     } else {
 	int opCode = ERROR;
@@ -207,11 +208,14 @@ int main(int argc, char **argv){
 			// If the op code is a read request
 			if (opCode == 1) {
 				char fileName[ARRAY_SMALL];
+				//char directory[ARRAY_SMALL];
+				//strcpy(directory, argv[2]);
 				getFilePath(message, fileName, argv[2]);
 				char mode[ARRAY_SMALL];
 				getMode(message, fileName, mode);
 				readChunk(fileName, sockfd, client, len);
-
+				//fileName[0] = '\0';
+				//memset(&fileName, 0, ARRAY_SMALL * sizeof(fileName[0]));
 				char *ipNumber;
 				ipNumber = inet_ntoa(client.sin_addr); 
 				fprintf(stdout, "file \"%s\" requested from ", fileName);
