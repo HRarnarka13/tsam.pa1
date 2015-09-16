@@ -16,6 +16,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+// Define OP Codes
+#define RRQ 1
+#define WRQ 2
+#define DATA 3
+#define ACK 4
+#define ERROR 5
+
 int getOpcode(char* packet){
 	return packet[1];
 }
@@ -52,8 +59,7 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
     	while (!feof(file)) { 
 			memset(&chunk,0, sizeof(chunk));
 	    	memset(&response, 0, sizeof(response));
-	    	chunk[0] = 0x00;
-        	chunk[1] = 3 & 0xff;  // set the opcode 
+        	chunk[1] = ACK;  // set the opcode 
      		// set the packet number 
 	    	chunk[2] = (packetNumber >> 8) & 0xff;
 	    	chunk[3] = packetNumber & 0xff; 
@@ -72,13 +78,13 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
 	    		response[response_length] = '\0';
 				receivedOpCode = getOpcode(response);			
 				receivedPacket = getNumber(response[2], response[3]);
-			} while (receivedOpCode == 4 && packetNumber -1 != receivedPacket && client.sin_port == originalPort);	
+			} while (receivedOpCode == ACK && packetNumber -1 != receivedPacket && client.sin_port == originalPort);	
 			
 			if (client.sin_port != originalPort) {
 				// Another client interrupting, create and send him an error packet. 
 				char errorPacket[100];
 				memset(&errorPacket, 0, sizeof(errorPacket));
-				errorPacket[1] = 5; // set the op code
+				errorPacket[1] = ERROR; // set the op code
 				errorPacket[3] = 5; // set the error code
 				char errorMessage[] = "Transfer already in progress with another client, try again later.";
 				strcpy(&errorPacket[4], errorMessage);
@@ -92,7 +98,7 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
 				// TODO : send client error packet
 				char errorPacket[100];
 				memset(&errorPacket, 0, sizeof(errorPacket));
-				errorPacket[1] = 5; // set the op code
+				errorPacket[1] = ERROR; // set the op code
 				errorPacket[3] = 4; // set the error code
 				char errorMessage[] = "";
 				strcpy(&errorPacket[4], errorMessage);
@@ -117,7 +123,7 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
 		// Create and send an error packet to client
 		memset(&chunk, 0, sizeof(chunk));
 		// Set op code
-		chunk[1] = 5;
+		chunk[1] = ERROR;
 		// set the error code
 		chunk[3] = 1;	
 		// set the error message
@@ -196,7 +202,7 @@ int main(int argc, char **argv){
 				// Create and send an error packet to the client 
 				char errorPacket[100];
 				memset(&errorPacket, 0, sizeof(errorPacket));
-				errorPacket[1] = 5; // set the op code
+				errorPacket[1] = ERROR; // set the op code
 				errorPacket[3] = 4; // set the error code
 				char errorMessage[] = "Illegal TFTP operation. Read request (RRQ) only allowed";
 				strcpy(&errorPacket[4], errorMessage);
