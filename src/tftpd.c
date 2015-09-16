@@ -170,7 +170,7 @@ int main(int argc, char **argv){
 				errorPacket[1] = 5; // set the op code
 				errorPacket[3] = 4; // set the error code
 				char errorMessage = "Illegal TFTP operation. Read request (RRQ) only allowed";
-				strcpy(&errorMessage[4], message);
+				strcpy(&errorMessage[4], errorPacket);
 				// Send the error packet to client
 				sendto(sockfd, errorPacket, sizeof(errorPakect), 0, (struct sockaddr *) &client,
 						(socklen_t) sizeof(client);
