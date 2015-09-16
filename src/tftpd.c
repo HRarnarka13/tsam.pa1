@@ -155,7 +155,7 @@ int main(int argc, char **argv){
 			fprintf(stdout, "Recived op code: %d\n", opCode);	
 			// If the op code is a read request
 			if (opCode == 1) {
-				char fileNmae[100];
+				char fileName[100];
 				getFileName(message, fileName);
 				char mode[100];
 				getMode(message, fileName, mode);
@@ -163,13 +163,13 @@ int main(int argc, char **argv){
 			} else {
 				// Create and send an error packet to the client 
 				char errorPacket[100];
-				memset(&errorPacket, 0, sizeof(errorPacket);
+				memset(&errorPacket, 0, sizeof(errorPacket));
 				errorPacket[1] = 5; // set the op code
 				errorPacket[3] = 4; // set the error code
 				char errorMessage = "Illegal TFTP operation. Read request (RRQ) only allowed";
 				strcpy(&errorPacket[4], errorMessage);
 				// Send the error packet to client
-				sendto(sockfd, errorPacket, sizeof(errorPakect), 0, (struct sockaddr *) &client,
+				sendto(sockfd, errorPacket, sizeof(errorPacket), 0, (struct sockaddr *) &client,
 						(socklen_t) sizeof(client));
 			}
  		} else {
