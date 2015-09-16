@@ -80,11 +80,12 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
 			if (originalClient != client) {
 				perror("Error, not the same client");	
 			}	
-            fprintf(stdout, "Packet sent    : %zu\n", packetNumber);
+            /*
+			fprintf(stdout, "Packet sent    : %zu\n", packetNumber);
 			fprintf(stdout, "Response opcode: %d\n", getOpcode(response));
 			fprintf(stdout, "Packet recieved: %d\n", getNumber((unsigned char) response[2], 
 															   (unsigned char) response[3]));
-
+			*/
        	    // fprintf(stdout, "%s", chunk);
             packetNumber++;
         }
@@ -119,65 +120,58 @@ int main(int argc, char **argv){
     server.sin_port = htons(atoi(argv[1]));
     bind(sockfd, (struct sockaddr *) &server, (socklen_t) sizeof(server));
 
-    for (;;) {
- 	   fd_set rfds;
-       struct timeval tv;
-       int retval;
+	for (;;) {
+		fd_set rfds;
+		struct timeval tv;
+       	int retval;
 
-       /* Check whether there is data on the socket fd. */
-       FD_ZERO(&rfds);
-       FD_SET(sockfd, &rfds);
+       	/* Check whether there is data on the socket fd. */
+       	FD_ZERO(&rfds);
+       	FD_SET(sockfd, &rfds);
 
-       tv.tv_sec = 5;
-       tv.tv_usec = 0;
-       retval = select(sockfd + 1, &rfds, NULL, NULL, &tv);
+       	tv.tv_sec = 5;
+       	tv.tv_usec = 0;
+       	retval = select(sockfd + 1, &rfds, NULL, NULL, &tv);
 
-       if (retval == -1) {
-	       perror("select()");
-       } else if (retval > 0) {
-           /* Data is available, receive it. */
-           assert(FD_ISSET(sockfd, &rfds));
+		if (retval == -1) {
+	    	perror("select()");
+		} else if (retval > 0) {
+           	/* Data is available, receive it. */
+           	assert(FD_ISSET(sockfd, &rfds));
 
-           /* Copy to len, since recvfrom may change it. */
-           socklen_t len = (socklen_t) sizeof(client);
-           /* Receive one byte less than declared,
+           	/* Copy to len, since recvfrom may change it. */
+           	socklen_t len = (socklen_t) sizeof(client);
+           	/* Receive one byte less than declared,
             * because it will be zero-termianted
             * below. */
-           ssize_t n = recvfrom(sockfd, message, sizeof(message) - 1, 0,
+           	ssize_t n = recvfrom(sockfd, message, sizeof(message) - 1, 0,
                                  (struct sockaddr *) &client, &len);			
-           /* Send the message back. */
-           sendto(sockfd, message, (size_t) n, 0, (struct sockaddr *) &client,
+           	/* Send the message back. */
+           	sendto(sockfd, message, (size_t) n, 0, (struct sockaddr *) &client,
                                (socklen_t) sizeof(client));
-           /* Zero terminate the message, otherwise
+           	/* Zero terminate the message, otherwise
  		    * printf may access memory outside of the
  		    * string. */
-           message[n] = '\0';
+           	message[n] = '\0';
 
-		   int opCode = getOpcode(message);
-		   char fileName[512];
-		   getFileName(message, fileName);
-		   char mode[100];
-		   getMode(message, fileName, mode);
-		   fprintf(stdout, "opcode : %d\n", opCode);
-		   fprintf(stdout, "fileName: %s\n", fileName);
-		   fprintf(stdout, "mode : %s\n", mode);
-           /* Print the message to stdout and flush. */
-           // fprintf(stdout, "Received:\n%s\n", message);
-           fflush(stdout);
-           readChunk(fileName, sockfd, client, len);
-           /*FILE* file = NULL;
-           char chunk[512];
-           memset(chunk,0,sizeof(chunk));
-                   
-           file = fopen(fileName, "r");
-           fread(message, 512, byteNumber, file);
-           fclose(file);
-
-           fprintf(stdout, "Chunk: %s\n", message);
-           fflush(stdout);*/
+		   	int opCode = getOpcode(message);
+		   	char fileName[512];
+		   	getFileName(message, fileName);
+		   	char mode[100];
+		   	getMode(message, fileName, mode);
+		   	fprintf(stdout, "opcode : %d\n", opCode);
+		  	fprintf(stdout, "fileName: %s\n", fileName);
+		   	fprintf(stdout, "mode : %s\n", mode);
+           	/* Print the message to stdout and flush. */
+           	// fprintf(stdout, "Received:\n%s\n", message);
+			fflush(stdout);
+			readChunk(fileName, sockfd, client, len);
+			
+           	fprintf(stdout, "Chunk: %s\n", message);
+           	fflush(stdout);
  		} else {
-           fprintf(stdout, "No message in five seconds.\n");
-           fflush(stdout);
+			fprintf(stdout, "No message in five seconds.\n");
+			fflush(stdout);
         }
 	}
 }
