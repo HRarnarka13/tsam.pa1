@@ -15,6 +15,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <libgen.h>
 #include <arpa/inet.h>
 // Define error messages.
 #define ERR_MSG_PORT "Transfer already in progress with another client, try again later."
@@ -50,9 +51,13 @@
 int getOpcode(char* packet){
 	return packet[1];
 }
-
-void getFileName(char* packet, char* fileName) {
-	strcpy(fileName, packet + 2);
+// Helper for constructing the path of the file requested
+// the parameter directory is argv[2] which is sent as argument to the program
+void getFilePath(char* packet, char* fileName, char* directory) {
+	fileName = basename(fileName);
+	strcat(directory, "/");
+	strcat(directory, packet + 2);
+	strcpy(fileName, directory);
 }
 
 void getMode(char* packet, char*fileName, char* mode) {
@@ -75,11 +80,7 @@ void sendError(int opcode, int errorCode, char* errorMessage, int sockfd, struct
 void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t len){
 
     FILE* file;
-    char path[ARRAY_SMALL];
-    strcpy(path, "data/");
-    strcat(path, fileName);
-	// TODO: Check path, illegal to dig 
-    file = fopen(path, "r");
+    file = fopen(fileName, "r");
     char chunk[PACKET_SIZE];
     char response[ACK_SIZE];
 	
@@ -201,14 +202,13 @@ int main(int argc, char **argv){
            	/* Zero terminate the message, otherwise
  		    * printf may access memory outside of the
  		    * string. */
-           	message[n] = '\0';
-
-		   	int opCode = getOpcode(message);
-			fprintf(stdout, "Recived op code: %d\n", opCode);	
+           	message[n] = '\0';	
+			int opCode = getOpcode(message);
 			// If the op code is a read request
 			if (opCode == 1) {
 				char fileName[ARRAY_SMALL];
-				getFileName(message, fileName);
+				getFilePath(message, fileName, argv[2]);
+				fprintf(stdout, "Fullpath in main: %s\n", fileName);
 				char mode[ARRAY_SMALL];
 				getMode(message, fileName, mode);
 				readChunk(fileName, sockfd, client, len);
