@@ -60,7 +60,7 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
 
         	numberOfBytes = fread(&chunk[4], 1, 512, file); // fill the chunck with data from file 
 			int receivedOpCode = 0;
-			unsigned short receivedPacket;	
+			unsigned short receivedPacket = '\0';	
 			do {
 				// send packet to client
         		sendto(sockfd, chunk, numberOfBytes + 4, 0,
@@ -79,7 +79,7 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
 					perror("Error!");
 				}			
 				// TODO: check if we are still connected to original client
-			} while (receivedOpCode == 4 && packetNumber != recivedPacket);	
+			} while (receivedOpCode == 4 && packetNumber != receivedPacket);	
             /*
 			fprintf(stdout, "Packet sent    : %zu\n", packetNumber);
 			fprintf(stdout, "Response opcode: %d\n", getOpcode(response));
@@ -158,7 +158,7 @@ int main(int argc, char **argv){
 			fprintf(stdout, "Recived op code: %d\n", opCode);	
 			// If the op code is a read request
 			if (opCode == 1) {
-				char fileNmae[100];
+				char fileName[100];
 				getFileName(message, fileName);
 				char mode[100];
 				getMode(message, fileName, mode);
@@ -169,10 +169,10 @@ int main(int argc, char **argv){
 				memset(&errorPacket, 0, sizeof(errorPacket));
 				errorPacket[1] = 5; // set the op code
 				errorPacket[3] = 4; // set the error code
-				char errorMessage = "Illegal TFTP operation. Read request (RRQ) only allowed";
+				char errorMessage[] = "Illegal TFTP operation. Read request (RRQ) only allowed";
 				strcpy(&errorPacket[4], errorMessage);
 				// Send the error packet to client
-				sendto(sockfd, errorPacket, sizeof(errorPakect), 0, (struct sockaddr *) &client,
+				sendto(sockfd, errorPacket, sizeof(errorPacket), 0, (struct sockaddr *) &client,
 						(socklen_t) sizeof(client));
 			}
  		} else {
