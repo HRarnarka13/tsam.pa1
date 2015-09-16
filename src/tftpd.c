@@ -60,7 +60,8 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
 
         	numberOfBytes = fread(&chunk[4], 1, 512, file); // fill the chunck with data from file 
 			int receivedOpCode = 0;
-			unsigned short receivedPacket = '\0';	
+			unsigned short receivedPacket = '\0';
+	
 			do {
 				// send packet to client
         		sendto(sockfd, chunk, numberOfBytes + 4, 0,
@@ -71,16 +72,33 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
 	    		response[response_length] = '\0';
 				receivedOpCode = getOpcode(response);			
 				receivedPacket = getNumber(response[2], response[3]);
-			} while (receivedOpCode == 4 && packetNumber != receivedPacket && client.sin_port == originalPort);	
+			} while (receivedOpCode == 4 && packetNumber -1 != receivedPacket && client.sin_port == originalPort);	
 			
 			if (client.sin_port != originalPort) {
-				// not the same client!, send this guy an error packet
-				// TODO: send the malisiuos client an error packet
+				// Another client interrupting, create and send him an error packet. 
+				char errorPacket[100];
+				memset(&errorPacket, 0, sizeof(errorPacket));
+				errorPacket[1] = 5; // set the op code
+				errorPacket[3] = 5; // set the error code
+				char errorMessage[] = "Transfer already in progress with another client, try again later.";
+				strcpy(&errorPacket[4], errorMessage);
+				// Send the error packet to client
+				sendto(sockfd, errorPacket, sizeof(errorPacket), 0, (struct sockaddr *) &client,
+						(socklen_t) sizeof(client));
 			}
 			if (receivedOpCode != 4) {
 				// did not receive a ack packet, terminate the connection
 				// stop sending the file
 				// TODO : send client error packet
+				char errorPacket[100];
+				memset(&errorPacket, 0, sizeof(errorPacket));
+				errorPacket[1] = 5; // set the op code
+				errorPacket[3] = 4; // set the error code
+				char errorMessage[] = "";
+				strcpy(&errorPacket[4], errorMessage);
+				// Send the error packet to client
+				sendto(sockfd, errorPacket, sizeof(errorPacket), 0, (struct sockaddr *) &client,
+						(socklen_t) sizeof(client));
 				return;
 			}
 
