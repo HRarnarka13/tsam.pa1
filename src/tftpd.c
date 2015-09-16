@@ -215,7 +215,7 @@ int main(int argc, char **argv){
 
 				char *ipNumber;
 				ipNumber = inet_ntoa(client.sin_addr); 
-				fprintf(stdout, "file \" %s \" requested from ", fileName);
+				fprintf(stdout, "file \"%s\" requested from ", fileName);
 				fprintf(stdout, "%s", ipNumber);
 				fprintf(stdout, ":%d\n", client.sin_port);
 				fflush(stdout);
