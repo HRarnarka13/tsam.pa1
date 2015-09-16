@@ -39,6 +39,13 @@
 #define ERR_CODE_FILE_EXISTS 6
 #define ERR_CODE_NO_SUCH_USER 7
 
+// Define constants
+#define PACKET_SIZE 516
+#define PACKET_DATA_SIZE 512
+#define ARRAY_SMALL 100
+#define ACK_SIZE 4
+
+
 int getOpcode(char* packet){
 	return packet[1];
 }
@@ -60,12 +67,13 @@ unsigned short getNumber(unsigned char one, unsigned char two) {
 void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t len){
 
     FILE* file;
-    char path[512];
+    char path[ARRAY_SMALL];
     strcpy(path, "data/");
     strcat(path, fileName);
+	// TODO: Check path, illegal to dig 
     file = fopen(path, "r");
-    char chunk[516];
-    char response[516];
+    char chunk[PACKET_SIZE];
+    char response[ACK_SIZE];
 	
 	u_short originalPort = client.sin_port; 
 
@@ -75,30 +83,31 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
     	while (!feof(file)) { 
 			memset(&chunk,0, sizeof(chunk));
 	    	memset(&response, 0, sizeof(response));
-        	chunk[1] = ACK;  // set the opcode 
+        	chunk[1] = DATA;  // set the opcode 
      		// set the packet number 
 	    	chunk[2] = (packetNumber >> 8) & 0xff;
 	    	chunk[3] = packetNumber & 0xff; 
 
-        	numberOfBytes = fread(&chunk[4], 1, 512, file); // fill the chunck with data from file 
+        	numberOfBytes = fread(&chunk[4], 1, PACKET_DATA_SIZE, file); // fill the chunck with data from file 
 			int receivedOpCode = 0;
 			unsigned short receivedPacket = '\0';
-	
-			do {
-				// send packet to client
-        		sendto(sockfd, chunk, numberOfBytes + 4, 0,
-                	 (struct sockaddr *) &client, (socklen_t) sizeof(client)); 	    
+
+			// Send the packed and wait for ACK.
+			do {	
+				sendto(sockfd, chunk, numberOfBytes + 4, 0,
+						(struct sockaddr *) &client, (socklen_t) sizeof(client)); 	    
 				// get response from client
-	    		ssize_t response_length = recvfrom(sockfd, response, sizeof(response) - 1, 0,
+	    		ssize_t response_length = recvfrom(sockfd, response, sizeof(response), 0,
 	             				(struct sockaddr *) &client, &len);
 	    		response[response_length] = '\0';
 				receivedOpCode = getOpcode(response);			
 				receivedPacket = getNumber(response[2], response[3]);
-			} while (receivedOpCode == ACK && packetNumber -1 != receivedPacket && client.sin_port == originalPort);	
+			} while (receivedOpCode == ACK && packetNumber != receivedPacket && client.sin_port == originalPort);	
+
 			
 			if (client.sin_port != originalPort) {
 				// Another client interrupting, create and send him an error packet. 
-				char errorPacket[100];
+				char errorPacket[ARRAY_SMALL];
 				memset(&errorPacket, 0, sizeof(errorPacket));
 				errorPacket[1] = ERROR; // set the op code
 				errorPacket[3] = ERR_CODE_UNKNOWN_TRANS_ID; // set the error code
@@ -108,11 +117,10 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
 				sendto(sockfd, errorPacket, sizeof(errorPacket), 0, (struct sockaddr *) &client,
 						(socklen_t) sizeof(client));
 			}
-			if (receivedOpCode != 4) {
+			if (receivedOpCode != ACK) {
 				// did not receive a ack packet, terminate the connection
 				// stop sending the file
-				// TODO : send client error packet
-				char errorPacket[100];
+				char errorPacket[ARRAY_SMALL];
 				memset(&errorPacket, 0, sizeof(errorPacket));
 				errorPacket[1] = ERROR; // set the op code
 				errorPacket[3] = ERR_CODE_ILLEGAL_TFTP_OP; // set the error code
@@ -159,7 +167,7 @@ int main(int argc, char **argv){
 	
 	int sockfd;
     struct sockaddr_in server, client;
-    char message[512];
+    char message[PACKET_DATA_SIZE];
 
     /* Create and bind a UDP socket */
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -209,14 +217,14 @@ int main(int argc, char **argv){
 			fprintf(stdout, "Recived op code: %d\n", opCode);	
 			// If the op code is a read request
 			if (opCode == 1) {
-				char fileName[100];
+				char fileName[ARRAY_SMALL];
 				getFileName(message, fileName);
-				char mode[100];
+				char mode[ARRAY_SMALL];
 				getMode(message, fileName, mode);
 				readChunk(fileName, sockfd, client, len);
 			} else {
 				// Create and send an error packet to the client 
-				char errorPacket[100];
+				char errorPacket[ARRAY_SMALL];
 				memset(&errorPacket, 0, sizeof(errorPacket));
 				errorPacket[1] = ERROR; // set the op code
 				errorPacket[3] = ERR_CODE_ILLEGAL_TFTP_OP; // set the error code
