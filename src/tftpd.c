@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <libgen.h>
+#include <arpa/inet.h>
 // Define error messages.
 #define ERR_MSG_PORT "Transfer already in progress with another client, try again later."
 #define ERR_MSG_OPCODE "Invalid request, only download allowed."
@@ -68,7 +69,14 @@ void getMode(char* packet, char*fileName, char* mode) {
 unsigned short getNumber(unsigned char one, unsigned char two) {
 	return (one << 8) | two;
 }
-
+void sendError(int opcode, int errorCode, char* errorMessage, int sockfd, struct sockaddr_in client ){
+	char errorPacket[100];
+	memset(&errorPacket, 0, sizeof(errorPacket));
+	errorPacket[1] = opcode; // set the error opcode
+	errorPacket[3] = errorCode; // set the error code
+	strcpy(&errorPacket[4], errorMessage);
+	sendto(sockfd, errorPacket, sizeof(errorPacket), 0, (struct sockaddr *) &client, (socklen_t) sizeof(client));
+}
 void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t len){
 
     FILE* file;
@@ -107,32 +115,21 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
 
 			
 			if (client.sin_port != originalPort) {
-				// Another client interrupting, create and send him an error packet. 
-				char errorPacket[ARRAY_SMALL];
-				memset(&errorPacket, 0, sizeof(errorPacket));
-				errorPacket[1] = ERROR; // set the op code
-				errorPacket[3] = ERR_CODE_UNKNOWN_TRANS_ID; // set the error code
+				// Another client interrupting, create and send him an error packet.
+				int opCode = ERROR;
+				int errorCode = ERR_CODE_UNKNOWN_TRANS_ID;
 				char errorMessage[] = ERR_MSG_PORT;
-				strcpy(&errorPacket[4], errorMessage);
-				// Send the error packet to client
-				sendto(sockfd, errorPacket, sizeof(errorPacket), 0, (struct sockaddr *) &client,
-						(socklen_t) sizeof(client));
+				sendError(opCode, errorCode, errorMessage, sockfd, client); 
 			}
 			if (receivedOpCode != ACK) {
 				// did not receive a ack packet, terminate the connection
 				// stop sending the file
-				char errorPacket[ARRAY_SMALL];
-				memset(&errorPacket, 0, sizeof(errorPacket));
-				errorPacket[1] = ERROR; // set the op code
-				errorPacket[3] = ERR_CODE_ILLEGAL_TFTP_OP; // set the error code
+				int opCode = ERROR;
+				int errorCode = ERR_CODE_ILLEGAL_TFTP_OP;
 				char errorMessage[] = ERR_MSG_OPCODE;
-				strcpy(&errorPacket[4], errorMessage);
-				// Send the error packet to client
-				sendto(sockfd, errorPacket, sizeof(errorPacket), 0, (struct sockaddr *) &client,
-						(socklen_t) sizeof(client));
+				sendError(opCode, errorCode, errorMessage, sockfd, client);
 				return;
 			}
-
 			/*
 			fprintf(stdout, "Packet sent    : %zu\n", packetNumber);
 			fprintf(stdout, "Response opcode: %d\n", getOpcode(response));
@@ -145,17 +142,10 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
 		printf("Done sending file: %s\n", fileName);
         fclose(file);
     } else {
-		// Create and send an error packet to client
-		memset(&chunk, 0, sizeof(chunk));
-		// Set op code
-		chunk[1] = ERROR;
-		// set the error code
-		chunk[3] = ERR_CODE_FILE_NOT_FOUND;	
-		// set the error message
-	    char message[] = ERR_MSG_FILE_NOT_FOUND; 
-		strcat(message, fileName);
-		strcpy(&chunk[4], message);  
-		perror(message);
+	int opCode = ERROR;
+	int errorCode = ERR_CODE_FILE_NOT_FOUND;
+	char errorMessage[] = ERR_MSG_FILE_NOT_FOUND;
+	sendError(opCode, errorCode, errorMessage, sockfd, client);
     }
 }
 
@@ -222,17 +212,19 @@ int main(int argc, char **argv){
 				char mode[ARRAY_SMALL];
 				getMode(message, fileName, mode);
 				readChunk(fileName, sockfd, client, len);
+
+				char *ipNumber;
+				ipNumber = inet_ntoa(client.sin_addr); 
+				fprintf(stdout, "file \" %s \" requested from ", fileName);
+				fprintf(stdout, "%s", ipNumber);
+				fprintf(stdout, ":%d\n", client.sin_port);
+				fflush(stdout);
 			} else {
-				// Create and send an error packet to the client 
-				char errorPacket[ARRAY_SMALL];
-				memset(&errorPacket, 0, sizeof(errorPacket));
-				errorPacket[1] = ERROR; // set the op code
-				errorPacket[3] = ERR_CODE_ILLEGAL_TFTP_OP; // set the error code
+				int opCode = ERROR;
+				int errorCode = ERR_CODE_ILLEGAL_TFTP_OP;
 				char errorMessage[] = ERR_MSG_ILLEGAL_TFTP_OP;
-				strcpy(&errorPacket[4], errorMessage);
-				// Send the error packet to client
-				sendto(sockfd, errorPacket, sizeof(errorPacket), 0, (struct sockaddr *) &client,
-						(socklen_t) sizeof(client));
+				// Create and send an error packet to the client 
+				sendError(opCode, errorCode, errorMessage,  sockfd, client );
 			}
  		} else {
 			fprintf(stdout, "No message in five seconds.\n");
