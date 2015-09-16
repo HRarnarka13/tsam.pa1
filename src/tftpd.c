@@ -208,7 +208,6 @@ int main(int argc, char **argv){
 			if (opCode == 1) {
 				char fileName[ARRAY_SMALL];
 				getFilePath(message, fileName, argv[2]);
-				fprintf(stdout, "Fullpath in main: %s\n", fileName);
 				char mode[ARRAY_SMALL];
 				getMode(message, fileName, mode);
 				readChunk(fileName, sockfd, client, len);
