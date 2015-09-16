@@ -77,9 +77,6 @@ void readChunk(char* fileName, int sockfd, struct sockaddr_in client, socklen_t 
 				perror("Error!");
 			}			
 			// check if we are still connected to original client
-			if (originalClient != client) {
-				perror("Error, not the same client");	
-			}	
             /*
 			fprintf(stdout, "Packet sent    : %zu\n", packetNumber);
 			fprintf(stdout, "Response opcode: %d\n", getOpcode(response));
@@ -170,10 +167,10 @@ int main(int argc, char **argv){
 				errorPacket[1] = 5; // set the op code
 				errorPacket[3] = 4; // set the error code
 				char errorMessage = "Illegal TFTP operation. Read request (RRQ) only allowed";
-				strcpy(&errorMessage[4], errorPacket);
+				strcpy(&errorPacket[4], errorMessage);
 				// Send the error packet to client
 				sendto(sockfd, errorPacket, sizeof(errorPakect), 0, (struct sockaddr *) &client,
-						(socklen_t) sizeof(client);
+						(socklen_t) sizeof(client));
 			}
  		} else {
 			fprintf(stdout, "No message in five seconds.\n");
