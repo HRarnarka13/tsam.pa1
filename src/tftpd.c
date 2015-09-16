@@ -15,6 +15,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <arpa/inet.h>
 // Define error messages.
 #define ERR_MSG_PORT "Transfer already in progress with another client, try again later."
 #define ERR_MSG_OPCODE "Invalid request, only download allowed."
@@ -211,6 +212,13 @@ int main(int argc, char **argv){
 				char mode[ARRAY_SMALL];
 				getMode(message, fileName, mode);
 				readChunk(fileName, sockfd, client, len);
+
+				char *ipNumber;
+				ipNumber = inet_ntoa(client.sin_addr); 
+				fprintf(stdout, "file \" %s \" requested from ", fileName);
+				fprintf(stdout, "%s", ipNumber);
+				fprintf(stdout, ":%d\n", client.sin_port);
+				fflush(stdout);
 			} else {
 				int opCode = ERROR;
 				int errorCode = ERR_CODE_ILLEGAL_TFTP_OP;
